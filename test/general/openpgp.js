@@ -2102,7 +2102,7 @@ mNwbfFbSNhZYWjFada77EKBn60j8QT/xCQzLR1clci7ieW2knw==
       expect(data).to.equal('Hello World!');
     });
 
-    it('supports encrypting new x25519 format', async function () {
+    it('supports encrypting/decrypting new x25519 format', async function () {
       // v4 key
       const privateKey = await openpgp.readKey({ armoredKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
@@ -2116,6 +2116,40 @@ nVbwnovjM3LLexpXFZSgTKRcNMgPRMJ0BBgbCAAqBQJkhtKTCZBB7MraIHa0iRYh
 BGpnNr3BBlzDGmMZg0HsytogdrSJAhsMAADCYs2I9wBakIu9Hhxs4R3Jq9F8J7AH
 yxsNL0GomZ+hxiE0MOZwRr10DxfVaRabF1fcf9PHSHX2SwEFXUKMIHgbMQs=
 =bJqd
+-----END PGP PRIVATE KEY BLOCK-----` });
+      const plaintext = 'plaintext';
+
+      const signed = await openpgp.encrypt({
+        message: await openpgp.createMessage({ text: plaintext }),
+        encryptionKeys: privateKey
+      });
+
+      const { data } = await openpgp.decrypt({
+        message: await openpgp.readMessage({ armoredMessage: signed }),
+        decryptionKeys: privateKey
+      });
+      expect(data).to.equal(plaintext);
+    });
+
+    it('supports encrypting/decrypting with x448', async function () {
+      // v4 key
+      const privateKey = await openpgp.readKey({ armoredKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----
+
+xXsEZCWHXBwwtqciq6ZFU13s+dyhkWR5tOEmF1oX8OiP1B5ypfqyGVM8DkQh
+5eTIMwB1oqJCROANoyA0q2dSigAAbDA5xr74DeClPPXC4ZXJ9uzuJWKvQvE8
+x3EflhgoQCGBM7JfvH5zwdrJvPt8RKDvm0QkZzhPvnFoHnzNBHRlc3TCugQQ
+HAgAPgWCZCWHXAQLCQcICZDsN6h/ys3ppwMVCAoEFgACAQIZAQKbAwIeARYh
+BOJyE9P2eIcU2N2Ne+w3qH/KzemnAAAh1hTFCcEU77bU3YelrJTCNIOQnvt7
+Hs6yZz2053CQTOC+wHkUQLaYYBEXSNyLZxoyv+NuGTiwbuYtAOlbE2erM7Cx
+8B2Qz7M29UkFLMBUfb+yi+gTYYUWCXVQ7Um7MGjjgUG8+9p452i6f28mhRD8
+tTgNAMd6BGQlh1wavTIFgILtbzrqQCiwDGx0YcFNzu9+FZ8vK5Mmm7UEZj0a
+y7FWQtZw8tTaU6mY+RrSa52RjzkGLtQAQO++tgYqc+BnCFdCZ3ZYPRvD3mof
+ffoo3l4xmto+iyvJZbQ4wQPXttg7VjCpEfOsL9TW9Xs09aIkG+7CpgQYHAgA
+KgWCZCWHXAmQ7Deof8rN6acCmwwWIQTichPT9niHFNjdjXvsN6h/ys3ppwAA
+tOv3mYYfzo9oEXWm9iXhRlgAhiEQysT17FkQl0eGK0sXLwiiuqzr7MsULICL
+CScj2JET35mynLHlAwBJEgSwH3oswxoe3mtBjnSDIcBPwluH/x/FC28It+st
+d8d6DDVWmLCPXWefPBqYvF2MtozraiD0NQA=
+=jpWY
 -----END PGP PRIVATE KEY BLOCK-----` });
       const plaintext = 'plaintext';
 
@@ -4228,7 +4262,7 @@ kl0L
         message: await openpgp.createMessage({ text: plaintext }),
         encryptionKeys: privateKeyCast5,
         sessionKey: { data: new Uint8Array(16).fill(1), algorithm: 'cast5' }
-      })).to.be.rejectedWith(/X25519 keys can only encrypt AES session keys/);
+      })).to.be.rejectedWith(/X25519 and X448 keys can only encrypt AES session keys/);
 
       await expect(openpgp.decryptSessionKeys({
         message: await openpgp.readMessage({ armoredMessage: `-----BEGIN PGP MESSAGE-----
@@ -4236,6 +4270,49 @@ kl0L
 wUQD66NYAXF0vfYZNWpc7s9eihtgj7EhHBeLOq2Ktw79artbhN5JMs+9aCIZ
 A7sB7uYCTVCLIMfPFwVZH+c29gpCzPxSXQ==
 =Dr02
+-----END PGP MESSAGE-----` }),
+        decryptionKeys: privateKeyCast5
+      })).to.be.rejectedWith(/AES session key expected/);
+    });
+
+    it('should enforce using AES session keys with x448 keys', async function () {
+      // X448 key (v4) with cast5 as preferred cipher
+      const privateKeyCast5 = await openpgp.readKey({ armoredKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----
+
+xXsEZCWHXBwwtqciq6ZFU13s+dyhkWR5tOEmF1oX8OiP1B5ypfqyGVM8DkQh
+5eTIMwB1oqJCROANoyA0q2dSigAAbDA5xr74DeClPPXC4ZXJ9uzuJWKvQvE8
+x3EflhgoQCGBM7JfvH5zwdrJvPt8RKDvm0QkZzhPvnFoHnzNAMK7BBAcCAA/
+BYJkfRF7BQsDCQcICZDsN6h/ys3ppwMVCAoEFgACAQIZAQKbAwIeARYhBOJy
+E9P2eIcU2N2Ne+w3qH/KzemnAAAA5bXTB7gh3D37gXMR5QsvdcUDFxPgLCef
+TL9isRz0WdpQmZnsSgcFqOfa+BvR6vTvlC6MdZY7fcahAMoD8M5mmoYWdxwe
+Js9BtfjXWKOQKO75OaFjf5BrSofvUyjzaYQSXpXx2rr4296ewxNDC1Fwcm86
+AMd5BGQlh1wavTIFgILtbzrqQCiwDGx0YcFNzu9+FZ8vK5Mmm7UEZj0ay7FW
+QtZw8tTaU6mY+RrSa52RjzkGLtQAQO++tgYqc+BnCFdCZ3ZYPRvD3mofffoo
+3l4xmto+iyvJZbQ4wQPXttg7VjCpEfOsL9TW9Xs09aIbysKmBBgcCAAqBYJk
+fRF7CZDsN6h/ys3ppwKbDBYhBOJyE9P2eIcU2N2Ne+w3qH/KzemnAAAGhL95
+eJXrJGZQs1x4WAADMFbojpEFALYh5C6khhNktI2LUlB4srGHsdjmNdEkaKDW
+g8i4ktPotFuYAIph/tuKwFn57+64xtsJcnhHAoXdXoE3jzBMTUncR2MsQnT7
+xIaEeJgXjF5jFqngP3CiMIYewtsGAA==
+=GESr
+-----END PGP PRIVATE KEY BLOCK-----` });
+
+      await expect(openpgp.generateSessionKey({
+        encryptionKeys: privateKeyCast5,
+        config: { preferredSymmetricAlgorithm: openpgp.enums.symmetric.cast5 }
+      })).to.be.rejectedWith(/Could not generate a session key compatible with the given `encryptionKeys`/);
+
+      await expect(openpgp.encrypt({
+        message: await openpgp.createMessage({ text: plaintext }),
+        encryptionKeys: privateKeyCast5,
+        sessionKey: { data: new Uint8Array(16).fill(1), algorithm: 'cast5' }
+      })).to.be.rejectedWith(/X25519 and X448 keys can only encrypt AES session keys/);
+
+      await expect(openpgp.decryptSessionKeys({
+        message: await openpgp.readMessage({ armoredMessage: `-----BEGIN PGP MESSAGE-----
+
+wVwDTGliHqKhY30aPNgDsTJWDCL7SGI+nxiRxrPQrI1COdOvn6ZkhNaULpmO
+NCeusV/FjUfYHNsZBlKzw7mW3JiSfW0ZA57wi/WDW3y3uAyxQZdn50eeShXy
+Onp8wA==
 -----END PGP MESSAGE-----` }),
         decryptionKeys: privateKeyCast5
       })).to.be.rejectedWith(/AES session key expected/);
